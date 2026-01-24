@@ -1,13 +1,35 @@
 #include "proc/process_manager.h"
 #include <iostream>
+#include "proc/program.h"
 
 int ProcessManager::create_process(int total_time) {
+    auto program = Program::create_default(total_time);
+    return create_process_with_program(program);
+}
+
+int ProcessManager::create_process_from_file(const std::string& filename) {
+    auto program = Program::load_from_file(filename);
+    if (!program) {
+        std::cerr << "Failed to load program from " << filename << std::endl;
+        return -1;
+    }
+    return create_process_with_program(program);
+}
+
+int ProcessManager::create_process_with_program(
+    std::shared_ptr<Program> program) {
     int pid = next_pid_++;
-    processes_[pid] =
-        PCB{.pid = pid, .state = ProcessState::Ready, .total_time = total_time};
+    PCB pcb;
+    pcb.pid = pid;
+    pcb.state = ProcessState::Ready;
+    pcb.program = program;
+    pcb.total_time = program->size();
+
+    processes_[pid] = pcb;
     ready_queue_.push(pid);
-    std::cout << "Process " << pid << " created (total_time=" << total_time
-              << ") and added to ready queue\n";
+
+    std::cout << "Process " << pid << " created with " << program->size()
+              << " instructions\n";
     return pid;
 }
 
@@ -17,8 +39,8 @@ void ProcessManager::terminate_process(int pid) {
         return;
     }
     processes_.erase(pid);
-    if (pid == current_running_) {
-        current_running_ = -1;
+    if (pid == cur_pid_) {
+        cur_pid_ = -1;
     }
     std::cout << "Process " << pid << " terminated.\n";
 }
@@ -44,12 +66,12 @@ void ProcessManager::dump_processes() const {
                 state_str = "Terminated";
                 break;
         }
-        std::cout << pid << "\t" << state_str << "\t\t" << pcb.remaining_time
+        std::cout << pid << "\t" << state_str << "\t\t" << pcb.time_slice_left
                   << "\t" << pcb.cpu_time << "/" << pcb.total_time << "\t\t"
                   << pcb.blocked_time << "\n";
     }
-    if (current_running_ != -1) {
-        std::cout << "Currently running: " << current_running_ << "\n";
+    if (cur_pid_ != -1) {
+        std::cout << "Currently running: " << cur_pid_ << "\n";
     } else {
         std::cout << "CPU idle\n";
     }
@@ -57,34 +79,45 @@ void ProcessManager::dump_processes() const {
 
 void ProcessManager::tick() {
     std::cout << "=== Tick " << next_tick_++ << " ===\n";
-    check_blocked_processes();
-    if (current_running_ != -1) {
-        // 运行 1 tick
-        auto& pcb = processes_[current_running_];
-        pcb.remaining_time--;
-        pcb.cpu_time++;
-        std::cout << "[Tick] Process " << current_running_ << " executing ("
-                  << pcb.cpu_time << "/" << pcb.total_time
-                  << ", remaining: " << pcb.remaining_time << ")\n";
 
-        if (pcb.cpu_time >= pcb.total_time) {  // 运行结束
-            std::cout << "[Tick] Process " << current_running_
-                      << " completed\n";
-            pcb.state = ProcessState::Terminated;
-            processes_.erase(current_running_);
-            current_running_ = -1;
-        } else if (pcb.remaining_time <= 0) {  // 时间片完
-            std::cout << "[Tick] Process " << current_running_
-                      << " time slice exhausted\n";
-            pcb.state = ProcessState::Ready;
-            pcb.remaining_time = pcb.time_slice;
-            ready_queue_.push(pcb.pid);
-            current_running_ = -1;
-        }
-    }
-    if (current_running_ == -1) {  // CPU 空闲，触发调度
+    if (cur_pid_ == -1) {
         schedule();
     }
+
+    if (cur_pid_ != -1) {
+        auto& pcb = processes_[cur_pid_];
+        // 执行下一条指令
+        if (pcb.pc < pcb.program->size()) {
+            execute_instruction(pcb, pcb.program->get_instruction(pcb.pc));
+            pcb.pc++;
+        }
+
+        pcb.time_slice_left--;
+        pcb.cpu_time++;
+        std::cout << "[Tick] Process " << cur_pid_
+                  << " executing (PC=" << pcb.pc << "/" << pcb.program->size()
+                  << ", slice remaining: " << pcb.time_slice_left << ")\n";
+
+        if (pcb.pc >= pcb.program->size()) {  // 进程完成
+            std::cout << "[Tick] Process " << cur_pid_ << " completed\n";
+            pcb.state = ProcessState::Terminated;
+            processes_.erase(cur_pid_);
+            cur_pid_ = -1;
+        } else if (pcb.time_slice_left <= 0) {  // 时间片完
+            std::cout << "[Tick] Process " << cur_pid_
+                      << " time slice exhausted\n";
+            pcb.state = ProcessState::Ready;
+            pcb.time_slice_left = pcb.time_slice;
+            ready_queue_.push(cur_pid_);
+            cur_pid_ = -1;
+        } else if (pcb.state == ProcessState::Blocked) {  // 进程阻塞
+            std::cout << "[Tick] Process " << cur_pid_
+                      << " blocked during execution\n";
+            cur_pid_ = -1;
+        }
+    }
+
+    check_blocked_processes();
 }
 
 void ProcessManager::schedule() {
@@ -99,7 +132,7 @@ void ProcessManager::schedule() {
             continue;  // 进程未就绪
         }
         // 调度进程开始运行
-        current_running_ = pcb.pid;
+        cur_pid_ = pcb.pid;
         pcb.state = ProcessState::Running;
         std::cout << "[Schedule] Process " << pid << " is now running\n";
         return;
@@ -118,14 +151,14 @@ void ProcessManager::run_process(int pid) {
         return;
     }
 
-    if (current_running_ != -1) {  // 抢占，改变当前进程状态
-        processes_[current_running_].state = ProcessState::Ready;
-        ready_queue_.push(current_running_);
-        std::cout << "Process " << current_running_ << " preempted\n";
+    if (cur_pid_ != -1) {  // 抢占，改变当前进程状态
+        processes_[cur_pid_].state = ProcessState::Ready;
+        ready_queue_.push(cur_pid_);
+        std::cout << "Process " << cur_pid_ << " preempted\n";
     }
 
     auto& pcb = processes_[pid];
-    current_running_ = pid;
+    cur_pid_ = pid;
     pcb.state = ProcessState::Running;
     std::cout << "Process " << pid << " is now running\n";
 }
@@ -148,8 +181,8 @@ void ProcessManager::block_process(int pid, int duration) {
     std::cout << "Process " << pid << " is blocked for " << duration
               << " ticks\n";
 
-    if (pid == current_running_) {  // 当前进程被阻塞，触发调度
-        current_running_ = -1;
+    if (pid == cur_pid_) {  // 当前进程被阻塞，触发调度
+        cur_pid_ = -1;
         schedule();
     }
     // 就绪队列中可能存在该进程的冗余项，暂不移除
@@ -183,5 +216,45 @@ void ProcessManager::check_blocked_processes() {
                 std::cout << "[Tick] Process " << pid << " auto-woken up\n";
             }
         }
+    }
+}
+
+void ProcessManager::execute_instruction(PCB& pcb, const Instruction& inst) {
+    std::cout << "[Exec: " << pcb.pid << "] ";
+    switch (inst.type) {
+        case OpType::Compute:
+            std::cout << "Compute\n";
+            break;
+        case OpType::MemRead:
+            std::cout << "MemRead addr=" << inst.arg1 << "\n";
+            break;
+        case OpType::MemWrite:
+            std::cout << "MemWrite addr=" << inst.arg1 << "\n";
+            break;
+        case OpType::FileOpen:
+            std::cout << "FileOpen file=" << inst.str_arg << "\n";
+            break;
+        case OpType::FileClose:
+            std::cout << "FileClose fd=" << inst.arg1 << "\n";
+            break;
+        case OpType::FileRead:
+            std::cout << "FileRead fd=" << inst.arg1 << " size=" << inst.arg2
+                      << "\n";
+            break;
+        case OpType::FileWrite:
+            std::cout << "FileWrite fd=" << inst.arg1 << " size=" << inst.arg2
+                      << "\n";
+            break;
+        case OpType::DevRequest:
+            std::cout << "DevRequest dev=" << inst.arg1 << "\n";
+            break;
+        case OpType::DevRelease:
+            std::cout << "DevRelease dev=" << inst.arg1 << "\n";
+            break;
+        case OpType::Sleep:
+            std::cout << "Sleep " << inst.arg1 << "\n";
+            pcb.state = ProcessState::Blocked;
+            pcb.blocked_time = inst.arg1;
+            break;
     }
 }

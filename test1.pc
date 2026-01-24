@@ -1,0 +1,11 @@
+# Simple test program
+C
+C
+R 0
+R 4096
+W 8192
+C
+S 3
+C
+R 100
+W 200

@@ -37,22 +37,30 @@ void Shell::execute_command(const std::vector<std::string>& args) {
                   << "  help             - Display this help message\n"
                   << "  ps               - List all simulated processes\n"
                   << "  create [time]    - Create a new process with optional total time (default: 10)\n"
+                  << "  create -f <file> - Create a process from .pc script file\n"
                   << "  kill <pid>       - Force terminate a process\n"
                   << "  tick [n]         - Execute n clock ticks (default: 1)\n"
                   << "  run <pid>        - Manually schedule a process to run\n"
                   << "  block <pid> [t]  - Block a process for t ticks (default: 5)\n"
                   << "  wakeup <pid>     - Wake up a blocked process\n"
-                  << "  exe <file>    - Execute commands from a script file\n"
+                  << "  exe <file>       - Execute commands from a script file\n"
                   << "  exit             - Shutdown the simulation\n";
     } else if (cmd == "ps") {
         pm_.dump_processes();
     } else if (cmd == "create") {
-        int total_time = 10;
-        if (args.size() > 1) {
-            total_time = std::stoi(args[1]);
+        if (args.size() > 2 && args[1] == "-f") {
+            int pid = pm_.create_process_from_file(args[2]);
+            if (pid != -1) {
+                std::cout << "Created process PID: " << pid << " from " << args[2] << "\n";
+            }
+        } else {
+            int total_time = 10;
+            if (args.size() > 1) {
+                total_time = std::stoi(args[1]);
+            }
+            int pid = pm_.create_process(total_time);
+            std::cout << "Created process PID: " << pid << "\n";
         }
-        int pid = pm_.create_process(total_time);
-        std::cout << "Created process PID: " << pid << "\n";
     } else if (cmd == "kill") {
         if (args.size() > 1) {
             pm_.terminate_process(std::stoi(args[1]));

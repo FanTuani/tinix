@@ -1,0 +1,11 @@
+# Memory intensive program
+R 0
+R 4096
+R 8192
+R 12288
+W 0
+W 4096
+C
+C
+R 16384
+R 20480
