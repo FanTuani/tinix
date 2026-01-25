@@ -1,11 +1,11 @@
 # Memory intensive program
-R 0
-R 4096
-R 8192
-R 12288
-W 0
-W 4096
+R 0x0000
+R 0x1000
+R 0x2000
+R 0x3000
+W 0x0000
+W 0x1000
 C
 C
-R 16384
-R 20480
+R 0x4000
+R 0x5000

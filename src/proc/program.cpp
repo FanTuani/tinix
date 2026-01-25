@@ -2,6 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
 
 std::shared_ptr<Program> Program::load_from_file(const std::string& filename) {
     auto instructions = parse_file(filename);
@@ -51,11 +52,11 @@ std::vector<Instruction> Program::parse_file(const std::string& filename) {
             instructions.emplace_back(OpType::Compute);
         } else if (op == "R" || op == "MEMREAD") {
             uint64_t addr;
-            iss >> addr;
+            iss >> std::setbase(0) >> addr;
             instructions.emplace_back(OpType::MemRead, addr);
         } else if (op == "W" || op == "MEMWRITE") {
             uint64_t addr;
-            iss >> addr;
+            iss >> std::setbase(0) >> addr;
             instructions.emplace_back(OpType::MemWrite, addr);
         } else if (op == "FO" || op == "FILEOPEN") {
             std::string fname;
@@ -63,27 +64,27 @@ std::vector<Instruction> Program::parse_file(const std::string& filename) {
             instructions.emplace_back(OpType::FileOpen, 0, 0, fname);
         } else if (op == "FC" || op == "FILECLOSE") {
             uint64_t fd;
-            iss >> fd;
+            iss >> std::setbase(0) >> fd;
             instructions.emplace_back(OpType::FileClose, fd);
         } else if (op == "FR" || op == "FILEREAD") {
             uint64_t fd, size;
-            iss >> fd >> size;
+            iss >> std::setbase(0) >> fd >> std::setbase(0) >> size;
             instructions.emplace_back(OpType::FileRead, fd, size);
         } else if (op == "FW" || op == "FILEWRITE") {
             uint64_t fd, size;
-            iss >> fd >> size;
+            iss >> std::setbase(0) >> fd >> std::setbase(0) >> size;
             instructions.emplace_back(OpType::FileWrite, fd, size);
         } else if (op == "DR" || op == "DEVREQ") {
             uint64_t dev;
-            iss >> dev;
+            iss >> std::setbase(0) >> dev;
             instructions.emplace_back(OpType::DevRequest, dev);
         } else if (op == "DD" || op == "DEVREL") {
             uint64_t dev;
-            iss >> dev;
+            iss >> std::setbase(0) >> dev;
             instructions.emplace_back(OpType::DevRelease, dev);
         } else if (op == "S" || op == "SLEEP") {
             uint64_t duration;
-            iss >> duration;
+            iss >> std::setbase(0) >> duration;
             instructions.emplace_back(OpType::Sleep, duration);
         }
     }

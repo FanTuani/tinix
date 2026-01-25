@@ -1,11 +1,11 @@
 # Simple test program
 C
 C
-R 0
-R 4096
-W 8192
+R 0x0000
+R 0x1000
+W 0x2000
 C
 S 3
 C
-R 100
-W 200
+R 0x0064
+W 0x00C8
