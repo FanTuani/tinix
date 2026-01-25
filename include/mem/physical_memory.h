@@ -13,10 +13,11 @@ class PhysicalMemory {
 public:
     explicit PhysicalMemory(size_t num_frames, size_t frame_size = 4096);
     
-    std::optional<uint32_t> allocate_frame(int pid, size_t page_number);
-    void free_frame(uint32_t frame_number);
+    std::optional<size_t> allocate_frame(int pid, size_t page_number);
+    void free_frame(size_t frame_number);
+    void assign_frame(size_t frame_number, int pid, size_t page_number);
     
-    const FrameInfo& get_frame_info(uint32_t frame_number) const;
+    const FrameInfo& get_frame_info(size_t frame_number) const;
     
     size_t get_total_frames() const { return frames_.size(); }
     size_t get_free_frames() const;

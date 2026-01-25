@@ -4,7 +4,7 @@
 
 class Kernel {
 public:
-    Kernel(size_t num_frames = 16, size_t page_size = 4096);
+    Kernel(size_t num_frames, size_t page_size);
     
     ProcessManager& get_process_manager() { return pm_; }
     MemoryManager& get_memory_manager() { return mm_; }

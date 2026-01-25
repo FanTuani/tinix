@@ -5,26 +5,30 @@
 PhysicalMemory::PhysicalMemory(size_t num_frames, size_t frame_size)
     : frames_(num_frames), frame_size_(frame_size) {}
 
-std::optional<uint32_t> PhysicalMemory::allocate_frame(int pid, size_t page_number) {
+std::optional<size_t> PhysicalMemory::allocate_frame(int pid, size_t page_number) {
     for (size_t i = 0; i < frames_.size(); ++i) {
         if (!frames_[i].allocated) {
             frames_[i].allocated = true;
             frames_[i].owner_pid = pid;
             frames_[i].page_number = page_number;
-            return static_cast<uint32_t>(i);
+            return i;
         }
     }
     return std::nullopt;
 }
 
-void PhysicalMemory::free_frame(uint32_t frame_number) {
+void PhysicalMemory::free_frame(size_t frame_number) {
     frames_[frame_number] = FrameInfo{};
 }
 
-const FrameInfo& PhysicalMemory::get_frame_info(uint32_t frame_number) const {
-    if (frame_number >= frames_.size()) {
-        throw std::out_of_range("Frame number out of range");
-    }
+void PhysicalMemory::assign_frame(size_t frame_number, int pid,
+                                 size_t page_number) {
+    frames_[frame_number].allocated = true;
+    frames_[frame_number].owner_pid = pid;
+    frames_[frame_number].page_number = page_number;
+}
+
+const FrameInfo& PhysicalMemory::get_frame_info(size_t frame_number) const {
     return frames_[frame_number];
 }
 

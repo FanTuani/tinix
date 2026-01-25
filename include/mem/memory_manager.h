@@ -17,7 +17,7 @@ struct MemoryStats {
 
 class MemoryManager {
 public:
-    MemoryManager(size_t num_frames = 32, size_t page_size = 4096);
+    MemoryManager(size_t num_frames, size_t page_size);
     
     void create_process_memory(int pid, size_t num_pages);
     void free_process_memory(int pid);
@@ -38,6 +38,7 @@ private:
     MemoryStats stats_;
     
     size_t page_size_;
-    
+    size_t clock_ptr_ = 0;
+
     bool handle_page_fault(int pid, size_t page_number, AccessType type);
 };

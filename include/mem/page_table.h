@@ -4,9 +4,16 @@
 
 struct PageTableEntry {
     bool present = false;
-    uint32_t frame_number = 0;
+    size_t frame_number = 0;
     bool dirty = false;
     bool referenced = false;
+
+    void clear() {
+        present = false;
+        frame_number = 0;
+        dirty = false;
+        referenced = false;
+    }
 };
 
 class PageTable {

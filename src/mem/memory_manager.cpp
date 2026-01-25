@@ -1,6 +1,7 @@
 #include "mem/memory_manager.h"
 #include <iostream>
 #include <iomanip>
+#include <stdexcept>
 
 MemoryManager::MemoryManager(size_t num_frames, size_t page_size)
     : physical_memory_(num_frames, page_size),
@@ -79,7 +80,7 @@ bool MemoryManager::access_memory(int pid, uint64_t virtual_addr, AccessType typ
         entry.dirty = true;
     }
     
-    uint64_t physical_addr = entry.frame_number * page_size_ + offset;
+    uint64_t physical_addr = (uint64_t)entry.frame_number * page_size_ + offset;
     
     std::cout << "[Memory] PID=" << pid << ", VAddr=0x" << std::hex << virtual_addr 
               << " -> PAddr=0x" << physical_addr << std::dec
@@ -92,25 +93,66 @@ bool MemoryManager::handle_page_fault(int pid, size_t page_number, AccessType ty
     // 尝试分配空闲物理页框
     auto frame_opt = physical_memory_.allocate_frame(pid, page_number);
     
-    if (!frame_opt) { // 无可用页框
-        // TODO: 实现页面置换算法
-        std::cerr << "[PageFault] No free frames available (TODO: page replacement)" << std::endl;
-        return false;
+    size_t frame_number = 0; // 分配到的页框号
+
+    if (frame_opt) { // 有可用页框
+        frame_number = *frame_opt;
+    } else {
+        // 无可用页框：使用 Clock 进行页面置换
+        const size_t total_frames = physical_memory_.get_total_frames();
+
+        while (true) {
+            const auto& frame_info = physical_memory_.get_frame_info(clock_ptr_);
+
+            if (!frame_info.allocated) {
+                throw std::runtime_error("Clock pointer points to free frame");
+            }
+
+            const int victim_pid = frame_info.owner_pid;
+            const size_t victim_vpage = frame_info.page_number;
+
+            auto vpt_it = page_tables_.find(victim_pid); // vpt = victim_page_table
+            if (vpt_it == page_tables_.end()) {
+                throw std::runtime_error("No page table for victim PID " + std::to_string(victim_pid));
+            }
+
+            PageTable& vpt = *(vpt_it->second);
+
+            auto& victim_entry = vpt[victim_vpage];
+
+            if (victim_entry.referenced) {
+                victim_entry.referenced = false;  // second chance
+                clock_ptr_ = (clock_ptr_ + 1) % total_frames;
+            } else {
+                // 牺牲
+                std::cout << "[Evict] Replacing Frame " << clock_ptr_
+                          << " from PID=" << victim_pid
+                          << ", VPage=" << victim_vpage << std::endl;
+                if (victim_entry.dirty) {
+                    // 脏页写回
+                    std::cout << "[Evict] Dirty page writeback: PID="
+                              << victim_pid << ", VPage=" << victim_vpage
+                              << ", Frame=" << clock_ptr_ << std::endl;
+                }
+                victim_entry.clear();
+                physical_memory_.assign_frame(clock_ptr_, pid, page_number);
+                frame_number = clock_ptr_;
+                clock_ptr_ = (clock_ptr_ + 1) % total_frames;
+                break;
+            }
+        }
     }
-    // 分配成功
-    uint32_t frame_number = *frame_opt;
-    // 更新页表项
+
+    // 更新缺页进程的页表项
     auto& entry = (*page_tables_[pid])[page_number];
     entry.present = true;
     entry.frame_number = frame_number;
     entry.referenced = true;
-    if (type == AccessType::Write) {
-        entry.dirty = true;
-    }
-    
-    std::cout << "[PageFault] Allocated Frame " << frame_number 
+    entry.dirty = (type == AccessType::Write);
+
+    std::cout << "[PageFault] Allocated Frame " << frame_number
               << " for PID=" << pid << ", VPage=" << page_number << std::endl;
-    
+
     return true;
 }
 
