@@ -43,11 +43,14 @@ void Shell::execute_command(const std::vector<std::string>& args) {
                   << "  run <pid>        - Manually schedule a process to run\n"
                   << "  block <pid> [t]  - Block a process for t ticks (default: 5)\n"
                   << "  wakeup <pid>     - Wake up a blocked process\n"
-                  << "  exe <file>       - Execute commands from a script file\n"
+                  << "  pagetable <pid>  - Display page table for a process\n"
+                  << "  mem              - Display physical memory status\n"
+                  << "  memstats [pid]   - Display memory statistics (system or per-process)\n"
+                  << "  script <file>    - Execute commands from a script file\n"
                   << "  exit             - Shutdown the simulation\n";
     } else if (cmd == "ps") {
         pm_.dump_processes();
-    } else if (cmd == "create") {
+    } else if (cmd == "create" or cmd == "cr") {
         if (args.size() > 2 && args[1] == "-f") {
             int pid = pm_.create_process_from_file(args[2]);
             if (pid != -1) {
@@ -67,7 +70,7 @@ void Shell::execute_command(const std::vector<std::string>& args) {
         } else {
             std::cout << "Usage: kill <pid>\n";
         }
-    } else if (cmd == "tick") {
+    } else if (cmd == "tick" or cmd == "tk") {
         int n = 1;
         if (args.size() > 1) {
             n = std::stoi(args[1]);
@@ -98,11 +101,41 @@ void Shell::execute_command(const std::vector<std::string>& args) {
         } else {
             std::cout << "Usage: wakeup <pid>\n";
         }
-    } else if (cmd == "exe") {
+    } else if (cmd == "pagetable" or cmd == "pt") {
+        if (args.size() > 1) {
+            int pid = std::stoi(args[1]);
+            pm_.get_memory_manager().dump_page_table(pid);
+        } else {
+            std::cout << "Usage: pagetable <pid>\n";
+        }
+    } else if (cmd == "mem") {
+        pm_.get_memory_manager().dump_physical_memory();
+    } else if (cmd == "memstats" or cmd == "ms") {
+        if (args.size() > 1) {
+            int pid = std::stoi(args[1]);
+            auto stats = pm_.get_memory_manager().get_process_stats(pid);
+            std::cout << "=== Memory Stats for PID " << pid << " ===\n";
+            std::cout << "Memory Accesses: " << stats.memory_accesses << "\n";
+            std::cout << "Page Faults: " << stats.page_faults << "\n";
+            if (stats.memory_accesses > 0) {
+                double fault_rate = (double)stats.page_faults / stats.memory_accesses * 100.0;
+                std::cout << "Page Fault Rate: " << fault_rate << "%\n";
+            }
+        } else {
+            auto stats = pm_.get_memory_manager().get_stats();
+            std::cout << "=== System Memory Stats ===\n";
+            std::cout << "Total Memory Accesses: " << stats.memory_accesses << "\n";
+            std::cout << "Total Page Faults: " << stats.page_faults << "\n";
+            if (stats.memory_accesses > 0) {
+                double fault_rate = (double)stats.page_faults / stats.memory_accesses * 100.0;
+                std::cout << "Page Fault Rate: " << fault_rate << "%\n";
+            }
+        }
+    } else if (cmd == "script" or cmd == "sc") {
         if (args.size() > 1) {
             execute_script(args[1]);
         } else {
-            std::cout << "Usage: exe <filename>\n";
+            std::cout << "Usage: script <filename>\n";
         }
     } else if (cmd == "exit") {
         running_ = false;

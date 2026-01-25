@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include "../proc/process_manager.h"
+#include "../mem/memory_manager.h"
 
 class Shell {
 public:

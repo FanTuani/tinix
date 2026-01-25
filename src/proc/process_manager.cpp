@@ -2,6 +2,9 @@
 #include <iostream>
 #include "proc/program.h"
 
+ProcessManager::ProcessManager(size_t num_frames, size_t page_size)
+    : memory_manager_(num_frames, page_size) {}
+
 int ProcessManager::create_process(int total_time) {
     auto program = Program::create_default(total_time);
     return create_process_with_program(program);
@@ -27,6 +30,9 @@ int ProcessManager::create_process_with_program(
 
     processes_[pid] = pcb;
     ready_queue_.push(pid);
+    
+    // 为进程创建内存空间
+    memory_manager_.create_process_memory(pid, pcb.virtual_pages);
 
     std::cout << "Process " << pid << " created with " << program->size()
               << " instructions\n";
@@ -38,6 +44,10 @@ void ProcessManager::terminate_process(int pid) {
         std::cout << "Process " << pid << " not found.\n";
         return;
     }
+    
+    // 释放进程的内存资源
+    memory_manager_.free_process_memory(pid);
+    
     processes_.erase(pid);
     if (pid == cur_pid_) {
         cur_pid_ = -1;
@@ -85,6 +95,9 @@ void ProcessManager::tick() {
     }
 
     if (cur_pid_ != -1) {
+        if (processes_.find(cur_pid_) == processes_.end()) {
+            throw std::runtime_error("Current PID not found in process list");
+        }
         auto& pcb = processes_[cur_pid_];
         // 执行下一条指令
         if (pcb.pc < pcb.program->size()) {
@@ -101,6 +114,7 @@ void ProcessManager::tick() {
         if (pcb.pc >= pcb.program->size()) {  // 进程完成
             std::cout << "[Tick] Process " << cur_pid_ << " completed\n";
             pcb.state = ProcessState::Terminated;
+            memory_manager_.free_process_memory(cur_pid_);
             processes_.erase(cur_pid_);
             cur_pid_ = -1;
         } else if (pcb.time_slice_left <= 0) {  // 时间片完
@@ -227,9 +241,11 @@ void ProcessManager::execute_instruction(PCB& pcb, const Instruction& inst) {
             break;
         case OpType::MemRead:
             std::cout << "MemRead addr=" << inst.arg1 << "\n";
+            memory_manager_.access_memory(pcb.pid, inst.arg1, AccessType::Read);
             break;
         case OpType::MemWrite:
             std::cout << "MemWrite addr=" << inst.arg1 << "\n";
+            memory_manager_.access_memory(pcb.pid, inst.arg1, AccessType::Write);
             break;
         case OpType::FileOpen:
             std::cout << "FileOpen file=" << inst.str_arg << "\n";
