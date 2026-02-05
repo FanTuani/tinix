@@ -16,7 +16,7 @@ DiskDevice::~DiskDevice() {
 void DiskDevice::initialize_disk() {
     // 检查磁盘文件是否存在，不存在则创建并预分配空间
     if (!std::filesystem::exists(filename_)) {
-        std::cout << "[Disk] Creating new disk image: " << filename_ 
+        std::cerr << "[Disk] Creating new disk image: " << filename_ 
                   << " (" << (num_blocks_ * block_size_) / 1024 << " KB)" << std::endl;
         
         std::ofstream outfile(filename_, std::ios::binary | std::ios::out);
@@ -27,7 +27,7 @@ void DiskDevice::initialize_disk() {
         outfile.close();
     }
 
-    std::cout << "[Disk] Opening disk image: " << filename_ << std::endl;
+    std::cerr << "[Disk] Opening disk image: " << filename_ << std::endl;
     // 以读写模式打开
     disk_file_.open(filename_, std::ios::binary | std::ios::in | std::ios::out);
     if (!disk_file_.is_open()) {

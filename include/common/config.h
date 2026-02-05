@@ -13,6 +13,12 @@ constexpr const char* DISK_IMAGE_NAME = "disk.img";
 constexpr size_t DISK_BLOCK_SIZE = 0x1000;  // 块大小 4 KB
 constexpr size_t DISK_NUM_BLOCKS = 1024;    // 总块数
 
+// swap
+constexpr size_t SWAP_RESERVED_BLOCKS = 128;
+constexpr size_t SWAP_START_BLOCK = DISK_NUM_BLOCKS - SWAP_RESERVED_BLOCKS;
+
+static_assert(SWAP_RESERVED_BLOCKS < DISK_NUM_BLOCKS);
+
 // proc
 constexpr int DEFAULT_TIME_SLICE = 3;  // 时间片长度
 }

@@ -1,10 +1,12 @@
 #pragma once
+#include "common/config.h"
 #include <cstdint>
 #include <cstring>
 
 // 文件系统布局常量
-constexpr uint32_t BLOCK_SIZE = 4096;
-constexpr uint32_t TOTAL_BLOCKS = 1024;
+constexpr uint32_t BLOCK_SIZE = static_cast<uint32_t>(config::DISK_BLOCK_SIZE);
+// FS: [0, SWAP_START_BLOCK), swap: [SWAP_START_BLOCK, DISK_NUM_BLOCKS)
+constexpr uint32_t TOTAL_BLOCKS = static_cast<uint32_t>(config::SWAP_START_BLOCK);
 
 // 布局设计
 constexpr uint32_t SUPERBLOCK_BLOCK = 0;
@@ -103,3 +105,4 @@ struct DirectoryEntry {
 static_assert(sizeof(SuperBlock) == BLOCK_SIZE, "SuperBlock size must equal BLOCK_SIZE");
 static_assert(sizeof(Inode) == 128, "Inode size must be 128 bytes");
 static_assert(sizeof(DirectoryEntry) == DIRENT_SIZE, "DirectoryEntry size must equal DIRENT_SIZE");
+static_assert(TOTAL_BLOCKS > DATA_BLOCKS_START, "FS partition too small");

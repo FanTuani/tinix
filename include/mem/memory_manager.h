@@ -42,7 +42,7 @@ private:
     
     size_t page_size_ = config::PAGE_SIZE;
     size_t clock_ptr_ = 0;
-    size_t next_swap_block_ = 0;
+    size_t next_swap_block_ = config::SWAP_START_BLOCK;
 
     bool handle_page_fault(int pid, size_t page_number, AccessType type);
 };

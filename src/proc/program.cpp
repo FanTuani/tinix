@@ -89,6 +89,6 @@ std::vector<Instruction> Program::parse_file(const std::string& filename) {
         }
     }
     
-    std::cout << "Loaded " << instructions.size() << " instructions from " << filename << std::endl;
+    std::cerr << "Loaded " << instructions.size() << " instructions from " << filename << std::endl;
     return instructions;
 }

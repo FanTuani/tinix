@@ -8,9 +8,9 @@ Shell::Shell(Kernel& kernel) : kernel_(kernel), running_(true) {}
 
 void Shell::run() {
     std::string line;
-    std::cout << "Tinix OS Shell. Type 'help' for commands.\n";
+    std::cerr << "Tinix OS Shell. Type 'help' for commands.\n";
     while (running_) {
-        std::cout << "tinix> ";
+        std::cerr << "tinix> ";
         if (!std::getline(std::cin, line)) break;
         if (line.empty()) continue;
 
@@ -69,7 +69,7 @@ void Shell::execute_command(const std::vector<std::string>& args) {
         if (args.size() > 2 && args[1] == "-f") {
             int pid = kernel_.get_process_manager().create_process_from_file(args[2]);
             if (pid != -1) {
-                std::cout << "Created process PID: " << pid << " from " << args[2] << "\n";
+                std::cerr << "Created process PID: " << pid << " from " << args[2] << "\n";
             }
         } else {
             int total_time = 10;
@@ -77,13 +77,13 @@ void Shell::execute_command(const std::vector<std::string>& args) {
                 total_time = std::stoi(args[1]);
             }
             int pid = kernel_.get_process_manager().create_process(total_time);
-            std::cout << "Created process PID: " << pid << "\n";
+            std::cerr << "Created process PID: " << pid << "\n";
         }
     } else if (cmd == "kill") {
         if (args.size() > 1) {
             kernel_.get_process_manager().terminate_process(std::stoi(args[1]));
         } else {
-            std::cout << "Usage: kill <pid>\n";
+            std::cerr << "Usage: kill <pid>\n";
         }
     } else if (cmd == "tick" or cmd == "tk") {
         int n = 1;
@@ -97,7 +97,7 @@ void Shell::execute_command(const std::vector<std::string>& args) {
         if (args.size() > 1) {
             kernel_.get_process_manager().run_process(std::stoi(args[1]));
         } else {
-            std::cout << "Usage: run <pid>\n";
+            std::cerr << "Usage: run <pid>\n";
         }
     } else if (cmd == "block") {
         if (args.size() > 1) {
@@ -108,20 +108,20 @@ void Shell::execute_command(const std::vector<std::string>& args) {
             }
             kernel_.get_process_manager().block_process(pid, duration);
         } else {
-            std::cout << "Usage: block <pid> [duration]\n";
+            std::cerr << "Usage: block <pid> [duration]\n";
         }
     } else if (cmd == "wakeup") {
         if (args.size() > 1) {
             kernel_.get_process_manager().wakeup_process(std::stoi(args[1]));
         } else {
-            std::cout << "Usage: wakeup <pid>\n";
+            std::cerr << "Usage: wakeup <pid>\n";
         }
     } else if (cmd == "pagetable" or cmd == "pt") {
         if (args.size() > 1) {
             int pid = std::stoi(args[1]);
             kernel_.get_memory_manager().dump_page_table(pid);
         } else {
-            std::cout << "Usage: pagetable <pid>\n";
+            std::cerr << "Usage: pagetable <pid>\n";
         }
     } else if (cmd == "mem") {
         kernel_.get_memory_manager().dump_physical_memory();
@@ -129,54 +129,54 @@ void Shell::execute_command(const std::vector<std::string>& args) {
         if (args.size() > 1) {
             int pid = std::stoi(args[1]);
             auto stats = kernel_.get_memory_manager().get_process_stats(pid);
-            std::cout << "=== Memory Stats for PID " << pid << " ===\n";
-            std::cout << "Memory Accesses: " << stats.memory_accesses << "\n";
-            std::cout << "Page Faults: " << stats.page_faults << "\n";
+            std::cerr << "=== Memory Stats for PID " << pid << " ===\n";
+            std::cerr << "Memory Accesses: " << stats.memory_accesses << "\n";
+            std::cerr << "Page Faults: " << stats.page_faults << "\n";
             if (stats.memory_accesses > 0) {
                 double fault_rate = (double)stats.page_faults / stats.memory_accesses * 100.0;
-                std::cout << "Page Fault Rate: " << fault_rate << "%\n";
+                std::cerr << "Page Fault Rate: " << fault_rate << "%\n";
             }
         } else {
             auto stats = kernel_.get_memory_manager().get_stats();
-            std::cout << "=== System Memory Stats ===\n";
-            std::cout << "Total Memory Accesses: " << stats.memory_accesses << "\n";
-            std::cout << "Total Page Faults: " << stats.page_faults << "\n";
+            std::cerr << "=== System Memory Stats ===\n";
+            std::cerr << "Total Memory Accesses: " << stats.memory_accesses << "\n";
+            std::cerr << "Total Page Faults: " << stats.page_faults << "\n";
             if (stats.memory_accesses > 0) {
                 double fault_rate = (double)stats.page_faults / stats.memory_accesses * 100.0;
-                std::cout << "Page Fault Rate: " << fault_rate << "%\n";
+                std::cerr << "Page Fault Rate: " << fault_rate << "%\n";
             }
         }
     } else if (cmd == "script" or cmd == "sc") {
         if (args.size() > 1) {
             execute_script(args[1]);
         } else {
-            std::cout << "Usage: script <filename>\n";
+            std::cerr << "Usage: script <filename>\n";
         }
     
     // === File System Commands ===
     } else if (cmd == "format") {
         if (kernel_.get_file_system().format()) {
-            std::cout << "File system formatted successfully.\n";
+            std::cerr << "File system formatted successfully.\n";
         } else {
-            std::cout << "Failed to format file system.\n";
+            std::cerr << "Failed to format file system.\n";
         }
     } else if (cmd == "mount") {
         if (kernel_.get_file_system().mount()) {
-            std::cout << "File system mounted successfully.\n";
+            std::cerr << "File system mounted successfully.\n";
         } else {
-            std::cout << "Failed to mount file system.\n";
+            std::cerr << "Failed to mount file system.\n";
         }
     } else if (cmd == "touch") {
         if (args.size() > 1) {
             kernel_.get_file_system().create_file(args[1]);
         } else {
-            std::cout << "Usage: touch <filename>\n";
+            std::cerr << "Usage: touch <filename>\n";
         }
     } else if (cmd == "mkdir") {
         if (args.size() > 1) {
             kernel_.get_file_system().create_directory(args[1]);
         } else {
-            std::cout << "Usage: mkdir <dirname>\n";
+            std::cerr << "Usage: mkdir <dirname>\n";
         }
     } else if (cmd == "ls") {
         std::string path = (args.size() > 1) ? args[1] : ".";
@@ -193,7 +193,7 @@ void Shell::execute_command(const std::vector<std::string>& args) {
         if (args.size() > 1) {
             kernel_.get_file_system().remove_file(args[1]);
         } else {
-            std::cout << "Usage: rm <filename>\n";
+            std::cerr << "Usage: rm <filename>\n";
         }
     } else if (cmd == "cat") {
         if (args.size() > 1) {
@@ -208,11 +208,11 @@ void Shell::execute_command(const std::vector<std::string>& args) {
                 kernel_.get_file_system().close_file(fd);
             }
         } else {
-            std::cout << "Usage: cat <filename>\n";
+            std::cerr << "Usage: cat <filename>\n";
         }
     } else if (cmd == "echo") {
         if (args.size() < 2) {
-            std::cout << "Usage: echo <text> [> filename]\n";
+            std::cerr << "Usage: echo <text> [> filename]\n";
         } else {
             std::string text;
             size_t redirect_pos = 0;
@@ -234,11 +234,11 @@ void Shell::execute_command(const std::vector<std::string>& args) {
                     kernel_.get_file_system().write_file(fd, text.c_str(), text.size());
                     kernel_.get_file_system().close_file(fd);
                 } else {
-                    std::cout << "Failed to open file: " << filename << "\n";
+                    std::cerr << "Failed to open file: " << filename << "\n";
                 }
             } else {
-                // 输出到屏幕
-                std::cout << text << "\n";
+                // 输出到屏幕（stderr）
+                std::cerr << text << "\n";
             }
         }
     } else if (cmd == "fsinfo") {
@@ -247,18 +247,18 @@ void Shell::execute_command(const std::vector<std::string>& args) {
     } else if (cmd == "exit") {
         running_ = false;
     } else {
-        std::cout << "Unknown command: " << cmd << "\n";
+        std::cerr << "Unknown command: " << cmd << "\n";
     }
 }
 
 void Shell::execute_script(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cout << "Error: Could not open script file '" << filename << "'\n";
+        std::cerr << "Error: Could not open script file '" << filename << "'\n";
         return;
     }
 
-    std::cout << "Executing script: " << filename << "\n";
+    std::cerr << "Executing script: " << filename << "\n";
     std::string line;
     
     while (std::getline(file, line)) {
@@ -266,7 +266,7 @@ void Shell::execute_script(const std::string& filename) {
             continue;
         }
 
-        std::cout << ">>> " << line << "\n";
+        std::cerr << ">>> " << line << "\n";
         auto args = parse_command(line);
         if (!args.empty()) {
             execute_command(args);
@@ -274,5 +274,5 @@ void Shell::execute_script(const std::string& filename) {
     }
     
     file.close();
-    std::cout << "Script execution completed.\n";
+    std::cerr << "Script execution completed.\n";
 }

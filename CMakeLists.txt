@@ -12,3 +12,7 @@ file(GLOB_RECURSE SOURCES
 add_executable(tinix ${SOURCES})
 
 target_include_directories(tinix PRIVATE include)
+
+include(CTest)
+enable_testing()
+add_subdirectory(test)

@@ -46,22 +46,22 @@ size_t PhysicalMemory::get_used_frames() const {
 }
 
 void PhysicalMemory::dump() const {
-    std::cout << "=== Physical Memory ===" << std::endl;
-    std::cout << "Total: " << frames_.size() << " frames" << std::endl;
-    std::cout << "Free: " << get_free_frames() << std::endl;
-    std::cout << "Used: " << get_used_frames() << std::endl;
+    std::cerr << "=== Physical Memory ===" << std::endl;
+    std::cerr << "Total: " << frames_.size() << " frames" << std::endl;
+    std::cerr << "Free: " << get_free_frames() << std::endl;
+    std::cerr << "Used: " << get_used_frames() << std::endl;
     
-    std::cout << "\nFrame | Status | PID | VPage" << std::endl;
-    std::cout << "------|--------|-----|------" << std::endl;
+    std::cerr << "\nFrame | Status | PID | VPage" << std::endl;
+    std::cerr << "------|--------|-----|------" << std::endl;
     
     for (size_t i = 0; i < frames_.size(); ++i) {
-        std::cout << std::setw(5) << i << " | ";
+        std::cerr << std::setw(5) << i << " | ";
         if (frames_[i].allocated) {
-            std::cout << " Used  | " << std::setw(3) << frames_[i].owner_pid 
+            std::cerr << " Used  | " << std::setw(3) << frames_[i].owner_pid 
                      << " | " << std::setw(5) << frames_[i].page_number;
         } else {
-            std::cout << " Free  |  -  |   -  ";
+            std::cerr << " Free  |  -  |   -  ";
         }
-        std::cout << std::endl;
+        std::cerr << std::endl;
     }
 }

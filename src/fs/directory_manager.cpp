@@ -215,12 +215,12 @@ bool DirectoryManager::create_directory(const std::string& path, const std::stri
     
     uint32_t parent_inode = lookup_path(parent_path, current_dir);
     if (parent_inode == INVALID_INODE) {
-        std::cout << "[FS] Parent directory not found: " << parent_path << std::endl;
+        std::cerr << "[FS] Parent directory not found: " << parent_path << std::endl;
         return false;
     }
     
     if (lookup_in_directory(parent_inode, dir_name) != INVALID_INODE) {
-        std::cout << "[FS] Directory already exists: " << path << std::endl;
+        std::cerr << "[FS] Directory already exists: " << path << std::endl;
         return false;
     }
     
@@ -255,7 +255,7 @@ bool DirectoryManager::create_directory(const std::string& path, const std::stri
         return false;
     }
     
-    std::cout << "[FS] Created directory: " << path << " (inode=" << new_inode << ")" << std::endl;
+    std::cerr << "[FS] Created directory: " << path << " (inode=" << new_inode << ")" << std::endl;
     return true;
 }
 

@@ -11,7 +11,7 @@ void MemoryManager::create_process_memory(int pid, size_t num_pages) {
     page_tables_[pid] = std::make_unique<PageTable>(num_pages);
     process_stats_[pid] = MemoryStats{};
 
-    std::cout << "[Memory] Created page table for PID " << pid << " ("
+    std::cerr << "[Memory] Created page table for PID " << pid << " ("
               << num_pages << " pages)" << std::endl;
 }
 
@@ -36,7 +36,7 @@ void MemoryManager::free_process_memory(int pid) {
     page_tables_.erase(it);
     process_stats_.erase(pid);
 
-    std::cout << "[Memory] Freed memory for PID " << pid << std::endl;
+    std::cerr << "[Memory] Freed memory for PID " << pid << std::endl;
 }
 
 bool MemoryManager::access_memory(int pid,
@@ -69,7 +69,7 @@ bool MemoryManager::access_memory(int pid,
         stats_.page_faults++;
         process_stats_[pid].page_faults++;
 
-        std::cout << "[PageFault] PID=" << pid << ", VPage=" << page_number
+        std::cerr << "[PageFault] PID=" << pid << ", VPage=" << page_number
                   << ", VAddr=0x" << std::hex << virtual_addr << std::dec
                   << std::endl;
 
@@ -87,7 +87,7 @@ bool MemoryManager::access_memory(int pid,
 
     uint64_t physical_addr = (uint64_t)entry.frame_number * page_size_ + offset;
 
-    std::cout << "[Memory] PID=" << pid << ", VAddr=0x" << std::hex
+    std::cerr << "[Memory] PID=" << pid << ", VAddr=0x" << std::hex
               << virtual_addr << " -> PAddr=0x" << physical_addr << std::dec
               << ", Frame=" << entry.frame_number << std::endl;
 
@@ -100,7 +100,7 @@ bool MemoryManager::handle_page_fault(int pid,
     auto& entry = (*page_tables_[pid])[page_number];
 
     if (entry.on_disk) {
-        std::cout << "[Swap] Reading PID=" << pid << " VPage=" << page_number
+        std::cerr << "[Swap] Reading PID=" << pid << " VPage=" << page_number
                   << " from Disk Block " << entry.swap_block << std::endl;
 
         // 使用哑数据模拟换入
@@ -146,18 +146,22 @@ bool MemoryManager::handle_page_fault(int pid,
                 clock_ptr_ = (clock_ptr_ + 1) % total_frames;
             } else {
                 // 牺牲
-                std::cout << "[Evict] Replacing Frame " << clock_ptr_
+                std::cerr << "[Evict] Replacing Frame " << clock_ptr_
                           << " from PID=" << victim_pid
                           << ", VPage=" << victim_vpage << std::endl;
 
                 if (victim_entry.dirty) {
                     // 脏页写回磁盘（交换出）
                     if (!victim_entry.on_disk) {
+                        if (next_swap_block_ >= config::DISK_NUM_BLOCKS) {
+                            std::cerr << "[Swap] Out of swap blocks" << std::endl;
+                            return false;
+                        }
                         victim_entry.swap_block = next_swap_block_++;
                         victim_entry.on_disk = true;
                     }
 
-                    std::cout << "[Swap] Writing PID=" << victim_pid
+                    std::cerr << "[Swap] Writing PID=" << victim_pid
                               << " VPage=" << victim_vpage << " to Disk Block "
                               << victim_entry.swap_block << std::endl;
 
@@ -183,7 +187,7 @@ bool MemoryManager::handle_page_fault(int pid,
     entry.referenced = true;
     entry.dirty = (type == AccessType::Write);
 
-    std::cout << "[PageFault] Allocated Frame " << frame_number
+    std::cerr << "[PageFault] Allocated Frame " << frame_number
               << " for PID=" << pid << ", VPage=" << page_number << std::endl;
 
     return true;
@@ -192,32 +196,32 @@ bool MemoryManager::handle_page_fault(int pid,
 void MemoryManager::dump_page_table(int pid) const {
     auto it = page_tables_.find(pid);
     if (it == page_tables_.end()) {
-        std::cout << "PID " << pid << " has no page table" << std::endl;
+        std::cerr << "PID " << pid << " has no page table" << std::endl;
         return;
     }
 
-    std::cout << "=== Page Table for PID " << pid << " ===" << std::endl;
-    std::cout << "VPage | Present | Frame | Dirty | Ref" << std::endl;
-    std::cout << "------|---------|-------|-------|----" << std::endl;
+    std::cerr << "=== Page Table for PID " << pid << " ===" << std::endl;
+    std::cerr << "VPage | Present | Frame | Dirty | Ref" << std::endl;
+    std::cerr << "------|---------|-------|-------|----" << std::endl;
 
     const PageTable* pt = it->second.get();
     for (size_t i = 0; i < pt->size(); ++i) {
         const auto& entry = (*pt)[i];
-        std::cout << std::setw(5) << i << " |    " << entry.present << "    | ";
+        std::cerr << std::setw(5) << i << " |    " << entry.present << "    | ";
 
         if (entry.present) {
-            std::cout << std::setw(5) << entry.frame_number;
+            std::cerr << std::setw(5) << entry.frame_number;
         } else {
-            std::cout << "  -  ";
+            std::cerr << "  -  ";
         }
 
-        std::cout << " |   " << entry.dirty << "   |  " << entry.referenced
+        std::cerr << " |   " << entry.dirty << "   |  " << entry.referenced
                   << std::endl;
     }
 
     auto stats_it = process_stats_.find(pid);
     if (stats_it != process_stats_.end()) {
-        std::cout << "\nStats: " << stats_it->second.page_faults
+        std::cerr << "\nStats: " << stats_it->second.page_faults
                   << " page faults, " << stats_it->second.memory_accesses
                   << " accesses" << std::endl;
     }

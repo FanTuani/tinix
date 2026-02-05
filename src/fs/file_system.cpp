@@ -23,7 +23,7 @@ FileSystem::~FileSystem() {
 
 // 格式化文件系统：初始化超级块、位图和根目录
 bool FileSystem::format() {
-    std::cout << "[FS] Formatting file system..." << std::endl;
+    std::cerr << "[FS] Formatting file system..." << std::endl;
     
     // 初始化超级块
     superblock_ = SuperBlock();
@@ -66,8 +66,8 @@ bool FileSystem::format() {
     mounted_ = true;
     block_mgr_->load_bitmaps();
     
-    std::cout << "[FS] Format complete!" << std::endl;
-    std::cout << "[FS] Total blocks: " << superblock_.total_blocks 
+    std::cerr << "[FS] Format complete!" << std::endl;
+    std::cerr << "[FS] Total blocks: " << superblock_.total_blocks 
               << ", Total inodes: " << superblock_.total_inodes << std::endl;
     
     return true;
@@ -75,7 +75,7 @@ bool FileSystem::format() {
 
 // 挂载文件系统：加载超级块和位图
 bool FileSystem::mount() {
-    std::cout << "[FS] Mounting file system..." << std::endl;
+    std::cerr << "[FS] Mounting file system..." << std::endl;
     
     if (!load_superblock()) {
         std::cerr << "[FS] Mount failed: unable to read SuperBlock" << std::endl;
@@ -89,6 +89,11 @@ bool FileSystem::mount() {
                   << superblock_.magic << std::dec << ")" << std::endl;
         return false;
     }
+
+    if (superblock_.total_blocks != TOTAL_BLOCKS || superblock_.total_inodes != MAX_INODES) {
+        std::cerr << "[FS] Mount failed: layout mismatch, please re-format" << std::endl;
+        return false;
+    }
     
     if (!block_mgr_->load_bitmaps()) {
         std::cerr << "[FS] Mount failed: unable to read bitmaps" << std::endl;
@@ -98,8 +103,8 @@ bool FileSystem::mount() {
     mounted_ = true;
     block_mgr_->set_bitmap_dirty(false);
     
-    std::cout << "[FS] Mount successful!" << std::endl;
-    std::cout << "[FS] Free blocks: " << superblock_.free_blocks 
+    std::cerr << "[FS] Mount successful!" << std::endl;
+    std::cerr << "[FS] Free blocks: " << superblock_.free_blocks 
               << ", Free inodes: " << superblock_.free_inodes << std::endl;
     
     return true;
@@ -131,7 +136,7 @@ bool FileSystem::init_root_directory() {
         return false;
     }
     
-    std::cout << "[FS] Root directory created (inode=" << ROOT_INODE 
+    std::cerr << "[FS] Root directory created (inode=" << ROOT_INODE 
               << ", block=" << root_data_block << ")" << std::endl;
     
     return true;
@@ -200,7 +205,7 @@ bool FileSystem::change_directory(const std::string& path) {
     
     current_dir_ = dir_mgr_->normalize_path(path, current_dir_);
     
-    std::cout << "[FS] Changed directory to: " << current_dir_ << std::endl;
+    std::cerr << "[FS] Changed directory to: " << current_dir_ << std::endl;
     return true;
 }
 
@@ -247,7 +252,7 @@ bool FileSystem::create_file(const std::string& path) {
     save_superblock();
     block_mgr_->save_bitmaps();
     
-    std::cout << "[FS] Created file: " << path << " (inode=" << new_inode << ")" << std::endl;
+    std::cerr << "[FS] Created file: " << path << " (inode=" << new_inode << ")" << std::endl;
     return true;
 }
 
@@ -289,7 +294,7 @@ bool FileSystem::remove_file(const std::string& path) {
     save_superblock();
     block_mgr_->save_bitmaps();
     
-    std::cout << "[FS] Removed file: " << path << std::endl;
+    std::cerr << "[FS] Removed file: " << path << std::endl;
     return true;
 }
 
@@ -316,13 +321,13 @@ int FileSystem::open_file(const std::string& path) {
     }
     
     int fd = fd_table_->alloc_fd(inode_num);
-    std::cout << "[FS] Opened file: " << path << " (fd=" << fd << ")" << std::endl;
+    std::cerr << "[FS] Opened file: " << path << " (fd=" << fd << ")" << std::endl;
     return fd;
 }
 
 void FileSystem::close_file(int fd) {
     if (fd_table_->free_fd(fd)) {
-        std::cout << "[FS] Closed file (fd=" << fd << ")" << std::endl;
+        std::cerr << "[FS] Closed file (fd=" << fd << ")" << std::endl;
     }
 }
 
@@ -437,14 +442,14 @@ ssize_t FileSystem::write_file(int fd, const void* buffer, size_t size) {
 }
 
 void FileSystem::print_superblock() const {
-    std::cout << "========== SuperBlock ==========" << std::endl;
-    std::cout << "Magic: 0x" << std::hex << superblock_.magic << std::dec << std::endl;
-    std::cout << "Total blocks: " << superblock_.total_blocks << std::endl;
-    std::cout << "Total inodes: " << superblock_.total_inodes << std::endl;
-    std::cout << "Free blocks: " << superblock_.free_blocks << std::endl;
-    std::cout << "Free inodes: " << superblock_.free_inodes << std::endl;
-    std::cout << "Data blocks start: " << superblock_.data_blocks_start << std::endl;
-    std::cout << "===============================" << std::endl;
+    std::cerr << "========== SuperBlock ==========" << std::endl;
+    std::cerr << "Magic: 0x" << std::hex << superblock_.magic << std::dec << std::endl;
+    std::cerr << "Total blocks: " << superblock_.total_blocks << std::endl;
+    std::cerr << "Total inodes: " << superblock_.total_inodes << std::endl;
+    std::cerr << "Free blocks: " << superblock_.free_blocks << std::endl;
+    std::cerr << "Free inodes: " << superblock_.free_inodes << std::endl;
+    std::cerr << "Data blocks start: " << superblock_.data_blocks_start << std::endl;
+    std::cerr << "===============================" << std::endl;
 }
 
 void FileSystem::print_inode(uint32_t inode_num) const {
@@ -453,14 +458,14 @@ void FileSystem::print_inode(uint32_t inode_num) const {
         return;
     }
     
-    std::cout << "========== Inode " << inode_num << " ==========" << std::endl;
-    std::cout << "Type: " << (inode.type == FileType::DIRECTORY ? "Directory" : "File") << std::endl;
-    std::cout << "Size: " << inode.size << " bytes" << std::endl;
-    std::cout << "Blocks used: " << inode.blocks_used << std::endl;
-    std::cout << "Direct blocks: ";
+    std::cerr << "========== Inode " << inode_num << " ==========" << std::endl;
+    std::cerr << "Type: " << (inode.type == FileType::DIRECTORY ? "Directory" : "File") << std::endl;
+    std::cerr << "Size: " << inode.size << " bytes" << std::endl;
+    std::cerr << "Blocks used: " << inode.blocks_used << std::endl;
+    std::cerr << "Direct blocks: ";
     for (uint32_t i = 0; i < inode.blocks_used && i < DIRECT_BLOCKS; i++) {
-        std::cout << inode.direct_blocks[i] << " ";
+        std::cerr << inode.direct_blocks[i] << " ";
     }
-    std::cout << std::endl;
-    std::cout << "===============================" << std::endl;
+    std::cerr << std::endl;
+    std::cerr << "===============================" << std::endl;
 }
