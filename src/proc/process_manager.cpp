@@ -1,9 +1,15 @@
 #include "proc/process_manager.h"
+#include <limits>
 #include <iostream>
+#include <vector>
 #include "proc/program.h"
 #include "common/config.h"
 
 namespace {
+constexpr uint64_t kAutoScriptFd = std::numeric_limits<uint64_t>::max();
+constexpr size_t kMaxScriptIoBytes = 1 << 20;  // 1 MiB safety cap
+constexpr char kWriteFillByte = 'x';
+
 // 把设备转交给“仍在等待”的进程，并唤醒它；无效/不匹配的 pid 会被跳过。
 void wakeup_device_waiter(DeviceManager& device_manager,
                           std::map<int, PCB>& processes,
@@ -38,8 +44,11 @@ void wakeup_device_waiter(DeviceManager& device_manager,
 }  // 命名空间
 
 ProcessManager::ProcessManager(MemoryManager& memory_manager,
-                               DeviceManager& device_manager)
-    : memory_manager_(memory_manager), device_manager_(device_manager) {}
+                               DeviceManager& device_manager,
+                               FileSystem& file_system)
+    : memory_manager_(memory_manager),
+      device_manager_(device_manager),
+      file_system_(file_system) {}
 
 int ProcessManager::create_process(int total_time) {
     auto program = Program::create_default(total_time);
@@ -77,7 +86,8 @@ int ProcessManager::create_process_with_program(
 }
 
 void ProcessManager::terminate_process(int pid) {
-    if (processes_.find(pid) == processes_.end()) {
+    auto it = processes_.find(pid);
+    if (it == processes_.end()) {
         std::cerr << "Process " << pid << " not found.\n";
         return;
     }
@@ -88,10 +98,12 @@ void ProcessManager::terminate_process(int pid) {
                              next_owner_pid);
     }
 
+    close_all_process_files(it->second);
+
     // 释放进程的内存资源
     memory_manager_.free_process_memory(pid);
     
-    processes_.erase(pid);
+    processes_.erase(it);
     if (pid == cur_pid_) {
         cur_pid_ = -1;
     }
@@ -168,6 +180,7 @@ void ProcessManager::tick() {
                 wakeup_device_waiter(device_manager_, processes_, ready_queue_,
                                      dev_id, next_owner_pid);
             }
+            close_all_process_files(pcb);
             memory_manager_.free_process_memory(cur_pid_);
             processes_.erase(cur_pid_);
             cur_pid_ = -1;
@@ -294,6 +307,29 @@ void ProcessManager::check_blocked_processes() {
     }
 }
 
+int ProcessManager::allocate_script_fd(PCB& pcb) {
+    while (pcb.next_script_fd < std::numeric_limits<int>::max() &&
+           pcb.fd_map.find(pcb.next_script_fd) != pcb.fd_map.end()) {
+        ++pcb.next_script_fd;
+    }
+    if (pcb.next_script_fd >= std::numeric_limits<int>::max()) {
+        return -1;
+    }
+    return pcb.next_script_fd++;
+}
+
+void ProcessManager::close_all_process_files(PCB& pcb) {
+    for (const auto& [script_fd, fs_fd] : pcb.fd_map) {
+        (void)script_fd;
+        file_system_.close_file(fs_fd);
+    }
+    if (!pcb.fd_map.empty()) {
+        std::cerr << "[Exec] Closed " << pcb.fd_map.size()
+                  << " open file(s) for PID " << pcb.pid << "\n";
+    }
+    pcb.fd_map.clear();
+}
+
 void ProcessManager::execute_instruction(PCB& pcb, const Instruction& inst) {
     std::cerr << "[Exec] ";
     switch (inst.type) {
@@ -308,20 +344,118 @@ void ProcessManager::execute_instruction(PCB& pcb, const Instruction& inst) {
             std::cerr << "MemWrite addr=" << inst.arg1 << "\n";
             memory_manager_.access_memory(pcb.pid, inst.arg1, AccessType::Write);
             break;
-        case OpType::FileOpen:
-            std::cerr << "FileOpen file=" << inst.str_arg << "\n";
+        case OpType::FileOpen: {
+            int script_fd = -1;
+            if (inst.arg1 != kAutoScriptFd) {
+                if (inst.arg1 > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+                    std::cerr << "FileOpen invalid fd=" << inst.arg1 << "\n";
+                    break;
+                }
+                script_fd = static_cast<int>(inst.arg1);
+                if (script_fd < 3) {
+                    std::cerr << "FileOpen invalid fd=" << script_fd << "\n";
+                    break;
+                }
+                if (pcb.fd_map.find(script_fd) != pcb.fd_map.end()) {
+                    std::cerr << "FileOpen fd already in use: " << script_fd
+                              << "\n";
+                    break;
+                }
+                if (script_fd >= pcb.next_script_fd) {
+                    pcb.next_script_fd = script_fd + 1;
+                }
+            }
+
+            int fs_fd = file_system_.open_file(inst.str_arg);
+            if (fs_fd < 0) {
+                std::cerr << "FileOpen failed: " << inst.str_arg << "\n";
+                break;
+            }
+
+            if (inst.arg1 == kAutoScriptFd) {
+                script_fd = allocate_script_fd(pcb);
+                if (script_fd < 0) {
+                    file_system_.close_file(fs_fd);
+                    std::cerr << "FileOpen failed: no available script fd\n";
+                    break;
+                }
+            }
+
+            pcb.fd_map[script_fd] = fs_fd;
+            std::cerr << "FileOpen file=" << inst.str_arg
+                      << " -> fd=" << script_fd << "\n";
             break;
-        case OpType::FileClose:
-            std::cerr << "FileClose fd=" << inst.arg1 << "\n";
+        }
+        case OpType::FileClose: {
+            if (inst.arg1 > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+                std::cerr << "FileClose invalid fd=" << inst.arg1 << "\n";
+                break;
+            }
+            const int script_fd = static_cast<int>(inst.arg1);
+            auto it = pcb.fd_map.find(script_fd);
+            if (it == pcb.fd_map.end()) {
+                std::cerr << "FileClose unknown fd=" << script_fd << "\n";
+                break;
+            }
+            file_system_.close_file(it->second);
+            pcb.fd_map.erase(it);
+            std::cerr << "FileClose fd=" << script_fd << "\n";
             break;
-        case OpType::FileRead:
-            std::cerr << "FileRead fd=" << inst.arg1 << " size=" << inst.arg2
-                      << "\n";
+        }
+        case OpType::FileRead: {
+            if (inst.arg1 > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+                std::cerr << "FileRead invalid fd=" << inst.arg1 << "\n";
+                break;
+            }
+            const int script_fd = static_cast<int>(inst.arg1);
+            auto it = pcb.fd_map.find(script_fd);
+            if (it == pcb.fd_map.end()) {
+                std::cerr << "FileRead unknown fd=" << script_fd << "\n";
+                break;
+            }
+
+            size_t req = static_cast<size_t>(inst.arg2);
+            if (req > kMaxScriptIoBytes) {
+                req = kMaxScriptIoBytes;
+            }
+            std::vector<char> buf(req == 0 ? 1 : req);
+            const ssize_t n = file_system_.read_file(it->second, buf.data(), req);
+            if (n < 0) {
+                std::cerr << "FileRead failed fd=" << script_fd
+                          << " size=" << req << "\n";
+            } else {
+                std::cerr << "FileRead fd=" << script_fd << " size=" << req
+                          << " -> " << n << " bytes\n";
+            }
             break;
-        case OpType::FileWrite:
-            std::cerr << "FileWrite fd=" << inst.arg1 << " size=" << inst.arg2
-                      << "\n";
+        }
+        case OpType::FileWrite: {
+            if (inst.arg1 > static_cast<uint64_t>(std::numeric_limits<int>::max())) {
+                std::cerr << "FileWrite invalid fd=" << inst.arg1 << "\n";
+                break;
+            }
+            const int script_fd = static_cast<int>(inst.arg1);
+            auto it = pcb.fd_map.find(script_fd);
+            if (it == pcb.fd_map.end()) {
+                std::cerr << "FileWrite unknown fd=" << script_fd << "\n";
+                break;
+            }
+
+            size_t req = static_cast<size_t>(inst.arg2);
+            if (req > kMaxScriptIoBytes) {
+                req = kMaxScriptIoBytes;
+            }
+            std::vector<char> buf(req, kWriteFillByte);
+            const ssize_t n = file_system_.write_file(it->second, buf.data(), req);
+            if (n < 0) {
+                std::cerr << "FileWrite failed fd=" << script_fd
+                          << " size=" << req << "\n";
+            } else {
+                std::cerr << "FileWrite fd=" << script_fd << " size=" << req
+                          << " -> " << n << " bytes\n";
+            }
             break;
+        }
         case OpType::DevRequest:
             std::cerr << "DevRequest dev=" << inst.arg1 << "\n";
             if (!device_manager_.request(pcb.pid,

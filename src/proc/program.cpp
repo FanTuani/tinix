@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <limits>
 
 std::shared_ptr<Program> Program::load_from_file(const std::string& filename) {
     auto instructions = parse_file(filename);
@@ -59,9 +60,30 @@ std::vector<Instruction> Program::parse_file(const std::string& filename) {
             iss >> std::setbase(0) >> addr;
             instructions.emplace_back(OpType::MemWrite, addr);
         } else if (op == "FO" || op == "FILEOPEN") {
-            std::string fname;
-            iss >> fname;
-            instructions.emplace_back(OpType::FileOpen, 0, 0, fname);
+            std::string first;
+            if (!(iss >> first)) {
+                std::cerr << "Invalid FO syntax (missing arguments) in "
+                          << filename << std::endl;
+                continue;
+            }
+
+            std::string second;
+            if (iss >> second) {
+                uint64_t fd = 0;
+                std::istringstream fd_iss(first);
+                fd_iss >> std::setbase(0) >> fd;
+                if (fd_iss.fail()) {
+                    std::cerr << "Invalid FO syntax (bad fd): " << line
+                              << std::endl;
+                    continue;
+                }
+                instructions.emplace_back(OpType::FileOpen, fd, 0, second);
+            } else {
+                instructions.emplace_back(OpType::FileOpen,
+                                          std::numeric_limits<uint64_t>::max(),
+                                          0,
+                                          first);
+            }
         } else if (op == "FC" || op == "FILECLOSE") {
             uint64_t fd;
             iss >> std::setbase(0) >> fd;

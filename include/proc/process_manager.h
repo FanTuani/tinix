@@ -2,6 +2,7 @@
 #include "process.h"
 #include "instruction.h"
 #include "dev/device_manager.h"
+#include "fs/file_system.h"
 #include "mem/memory_manager.h"
 #include <map>
 #include <queue>
@@ -12,7 +13,9 @@ class Program;
 
 class ProcessManager {
 public:
-    ProcessManager(MemoryManager& memory_manager, DeviceManager& device_manager);
+    ProcessManager(MemoryManager& memory_manager,
+                   DeviceManager& device_manager,
+                   FileSystem& file_system);
     
     int create_process(int total_time = 10);
     int create_process_from_file(const std::string& filename);
@@ -37,8 +40,11 @@ private:
     
     MemoryManager& memory_manager_;
     DeviceManager& device_manager_;
+    FileSystem& file_system_;
     
     void schedule();
     void check_blocked_processes();
     void execute_instruction(PCB& pcb, const Instruction& inst);
+    int allocate_script_fd(PCB& pcb);
+    void close_all_process_files(PCB& pcb);
 };

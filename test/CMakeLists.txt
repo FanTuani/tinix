@@ -90,6 +90,30 @@ add_test(
           --case fs_superblock_accounting
 )
 
+add_test(
+  NAME tinix_pc_file_ops_explicit_fd
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case pc_file_ops_explicit_fd
+)
+
+add_test(
+  NAME tinix_pc_file_ops_auto_fd_cleanup
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case pc_file_ops_auto_fd_cleanup
+)
+
+add_test(
+  NAME tinix_pc_file_ops_invalid_fd
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case pc_file_ops_invalid_fd
+)
+
 set_tests_properties(
   tinix_shell_help
   tinix_fs_persistence
@@ -102,5 +126,8 @@ set_tests_properties(
   tinix_swap_partition
   tinix_kernel_reformat_mismatch
   tinix_fs_superblock_accounting
+  tinix_pc_file_ops_explicit_fd
+  tinix_pc_file_ops_auto_fd_cleanup
+  tinix_pc_file_ops_invalid_fd
   PROPERTIES TIMEOUT 20
 )

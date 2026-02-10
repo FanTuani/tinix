@@ -1,0 +1,15 @@
+# Demo: .pc file ops after P1
+# 1) auto fd open/write/close
+FO /demo/msg
+FW 3 5
+FC 3
+
+# 2) explicit fd open/read/close
+FO 9 /demo/msg
+FR 9 3
+FC 9
+
+# 3) invalid fd path (should log unknown fd)
+FR 77 8
+
+C

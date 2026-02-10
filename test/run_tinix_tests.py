@@ -634,6 +634,141 @@ def case_fs_superblock_accounting(exe: Path, repo: Path) -> None:
             )
 
 
+def case_pc_file_ops_explicit_fd(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        pc = cwd / "pc_explicit.pc"
+        pc.write_text(
+            "\n".join(
+                [
+                    "FO 9 /d/f",
+                    "FW 9 5",
+                    "FC 9",
+                    "FO 9 /d/f",
+                    "FR 9 3",
+                    "FC 9",
+                    "C",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "format",
+                    "mount",
+                    "mkdir /d",
+                    "touch /d/f",
+                    f"create -f {pc.name}",
+                    "tick 30",
+                    "cat /d/f",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+        if r.out.strip() != "xxxxx":
+            raise AssertionError(f"unexpected stdout\n--- stdout ---\n{r.out}\n--- stderr ---\n{r.err}")
+
+        _require_contains(r.err, "FileOpen file=/d/f -> fd=9")
+        _require_contains(r.err, "[Exec] FileWrite fd=9 size=5 -> 5 bytes")
+        _require_contains(r.err, "[Exec] FileRead fd=9 size=3 -> 3 bytes")
+        _require_contains(r.err, "FileClose fd=9")
+
+
+def case_pc_file_ops_auto_fd_cleanup(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        pc = cwd / "pc_auto.pc"
+        pc.write_text(
+            "\n".join(
+                [
+                    "FO /d/g",
+                    "FW 3 4",
+                    "C",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "format",
+                    "mount",
+                    "mkdir /d",
+                    "touch /d/g",
+                    f"create -f {pc.name}",
+                    "tick 20",
+                    "cat /d/g",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+        if r.out.strip() != "xxxx":
+            raise AssertionError(f"unexpected stdout\n--- stdout ---\n{r.out}\n--- stderr ---\n{r.err}")
+
+        _require_contains(r.err, "FileOpen file=/d/g -> fd=3")
+        _require_contains(r.err, "[Exec] FileWrite fd=3 size=4 -> 4 bytes")
+        _require_contains(r.err, "[Exec] Closed 1 open file(s) for PID")
+
+
+def case_pc_file_ops_invalid_fd(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        pc = cwd / "pc_invalid.pc"
+        pc.write_text(
+            "\n".join(
+                [
+                    "FR 77 8",
+                    "FW 77 8",
+                    "FC 77",
+                    "C",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "format",
+                    "mount",
+                    f"create -f {pc.name}",
+                    "tick 20",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+
+        _require_contains(r.err, "[Exec] FileRead unknown fd=77")
+        _require_contains(r.err, "[Exec] FileWrite unknown fd=77")
+        _require_contains(r.err, "[Exec] FileClose unknown fd=77")
+        if not re.search(r"\[Tick\] Process \d+ completed", r.err):
+            raise AssertionError(f"expected process completion\n--- stderr ---\n{r.err}")
+
+
 CASES = {
     "shell_help": case_shell_help,
     "fs_persistence": case_fs_persistence,
@@ -646,6 +781,9 @@ CASES = {
     "swap_partition": case_swap_partition,
     "kernel_reformat_mismatch": case_kernel_reformat_mismatch,
     "fs_superblock_accounting": case_fs_superblock_accounting,
+    "pc_file_ops_explicit_fd": case_pc_file_ops_explicit_fd,
+    "pc_file_ops_auto_fd_cleanup": case_pc_file_ops_auto_fd_cleanup,
+    "pc_file_ops_invalid_fd": case_pc_file_ops_invalid_fd,
 }
 
 

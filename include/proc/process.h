@@ -1,5 +1,6 @@
 #include "common/config.h"
 #include <cstdint>
+#include <map>
 #include <memory>
 
 enum class ProcessState { New, Ready, Running, Blocked, Terminated };
@@ -26,4 +27,8 @@ struct PCB {
     std::shared_ptr<Program> program;
     size_t pc = 0;
     size_t virtual_pages = 64;
+
+    // 进程脚本中的“逻辑 fd”映射到文件系统真实 fd。
+    std::map<int, int> fd_map;
+    int next_script_fd = 3;
 };

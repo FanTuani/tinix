@@ -18,7 +18,7 @@ Tinix 采用 C++ 实现，通过 `tick` 推进系统时间（离散事件/时钟
 - **磁盘设备**：统一的块设备抽象（同时为文件系统与 swap 提供后备存储）。
 - **可观测性**：关键路径均输出日志，便于跟踪状态变化。
 
-说明：`.pc` 指令集中的文件相关操作码（如 `FO/FR/FW`）当前主要用于解析与日志输出；`DR/DD` 已接入设备分配、阻塞队列与释放唤醒逻辑。实际文件系统读写通过 Shell 命令完成（见下文）。
+说明：`.pc` 文件指令 `FO/FC/FR/FW` 已接入真实文件系统操作；`DR/DD` 已接入设备分配、阻塞队列与释放唤醒逻辑。当前 `FR/FW` 通过进程脚本 fd 执行读写，不与进程虚拟内存内容做字节级联动（以机制演示为主）。
 
 ## 快速开始
 
@@ -105,13 +105,16 @@ C                    # Compute - 计算
 R <addr>             # MemRead - 读内存
 W <addr>             # MemWrite - 写内存
 S <duration>         # Sleep - 睡眠
-FO <filename>        # FileOpen - 打开文件
+FO <filename>        # FileOpen - 自动分配脚本fd并打开文件（从3开始）
+FO <fd> <filename>   # FileOpen - 使用显式脚本fd打开文件
 FC <fd>              # FileClose - 关闭文件
 FR <fd> <size>       # FileRead - 读文件
 FW <fd> <size>       # FileWrite - 写文件
 DR <dev_id>          # DevRequest - 请求设备
 DD <dev_id>          # DevRelease - 释放设备
 ```
+
+说明：`FR/FW/FC` 使用“脚本fd”（每个进程独立）。若使用 `FO <filename>` 自动分配，则第一个 fd 通常为 `3`。
 
 仓库内提供了示例程序：`t1.pc`（混合计算/访存/睡眠）、`t2.pc`（密集访存）。例如 `t1.pc`：
 ```
