@@ -296,9 +296,20 @@ void Shell::execute_command(const std::vector<std::string>& args) {
             int fd = kernel_.get_file_system().open_file(args[1]);
             if (fd >= 0) {
                 std::vector<char> buffer(4096);
-                ssize_t bytes_read = kernel_.get_file_system().read_file(fd, buffer.data(), buffer.size());
-                if (bytes_read > 0) {
+                bool printed = false;
+                while (true) {
+                    ssize_t bytes_read = kernel_.get_file_system().read_file(
+                        fd, buffer.data(), buffer.size());
+                    if (bytes_read < 0) {
+                        break;
+                    }
+                    if (bytes_read == 0) {
+                        break;
+                    }
                     std::cout.write(buffer.data(), bytes_read);
+                    printed = true;
+                }
+                if (printed) {
                     std::cout << "\n";
                 }
                 kernel_.get_file_system().close_file(fd);

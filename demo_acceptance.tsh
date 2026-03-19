@@ -1,0 +1,26 @@
+# Acceptance demo for course presentation
+format
+mount
+mkdir /demo
+touch /demo/msg
+echo hello > /demo/msg
+cat /demo/msg
+
+# File operations from .pc script
+create -f demo_pc_file_ops.pc
+tick 20
+cat /demo/msg
+
+# Device queue and wakeup
+create -f demo_device.pc
+create -f demo_device.pc
+dev
+tick 1
+dev
+tick 10
+dev
+
+# Page fault and replacement
+create -f t2.pc
+tick 25
+memstats

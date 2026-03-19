@@ -154,6 +154,22 @@ add_test(
           --case swap_reclaims_blocks
 )
 
+add_test(
+  NAME tinix_shell_cat_large_file
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case shell_cat_large_file
+)
+
+add_test(
+  NAME tinix_acceptance_demo_script
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case acceptance_demo_script
+)
+
 set_tests_properties(
   tinix_shell_help
   tinix_fs_persistence
@@ -174,5 +190,7 @@ set_tests_properties(
   tinix_shell_invalid_input
   tinix_pc_invalid_parse
   tinix_swap_reclaims_blocks
+  tinix_shell_cat_large_file
+  tinix_acceptance_demo_script
   PROPERTIES TIMEOUT 20
 )

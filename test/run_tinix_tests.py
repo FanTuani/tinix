@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -919,6 +920,71 @@ def case_swap_reclaims_blocks(exe: Path, repo: Path) -> None:
             raise AssertionError(f"swap blocks leaked across processes\n--- stderr ---\n{r.err}")
 
 
+def case_shell_cat_large_file(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        pc = cwd / "big.pc"
+        pc.write_text(
+            "\n".join(
+                [
+                    "FO /big",
+                    "FW 3 5000",
+                    "FC 3",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "format",
+                    "mount",
+                    "touch /big",
+                    f"create -f {pc.name}",
+                    "tick 10",
+                    "cat /big",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+
+        lines = r.out.splitlines()
+        if len(lines) != 1 or len(lines[0]) != 5000 or set(lines[0]) != {"x"}:
+            raise AssertionError(f"unexpected stdout\n--- stdout ---\n{r.out}\n--- stderr ---\n{r.err}")
+
+
+def case_acceptance_demo_script(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        for name in [
+            "demo_acceptance.tsh",
+            "demo_device.pc",
+            "demo_pc_file_ops.pc",
+            "t2.pc",
+        ]:
+            shutil.copy(repo / name, cwd / name)
+
+        r = _run(exe, "script demo_acceptance.tsh\nexit\n", cwd)
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+
+        _require_contains(r.err, "Executing script: demo_acceptance.tsh")
+        _require_contains(r.err, "[FS] Created file: /demo/msg")
+        _require_contains(r.err, "[Dev] Queued pid=")
+        _require_contains(r.err, "[PageFault] PID=")
+        if "hello" not in r.out or "xxxxx" not in r.out:
+            raise AssertionError(f"unexpected stdout\n--- stdout ---\n{r.out}\n--- stderr ---\n{r.err}")
+
+
 CASES = {
     "shell_help": case_shell_help,
     "fs_persistence": case_fs_persistence,
@@ -939,6 +1005,8 @@ CASES = {
     "shell_invalid_input": case_shell_invalid_input,
     "pc_invalid_parse": case_pc_invalid_parse,
     "swap_reclaims_blocks": case_swap_reclaims_blocks,
+    "shell_cat_large_file": case_shell_cat_large_file,
+    "acceptance_demo_script": case_acceptance_demo_script,
 }
 
 
