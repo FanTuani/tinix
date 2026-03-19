@@ -2,9 +2,16 @@
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
+#include <unordered_set>
 
 MemoryManager::MemoryManager(DiskDevice& disk)
-    : physical_memory_(), disk_(disk) {}
+    : physical_memory_(), disk_(disk) {
+    for (size_t block = config::SWAP_START_BLOCK;
+         block < config::DISK_NUM_BLOCKS;
+         ++block) {
+        free_swap_blocks_.push_back(block);
+    }
+}
 
 // 为进程创建页表
 void MemoryManager::create_process_memory(int pid, size_t num_pages) {
@@ -25,10 +32,15 @@ void MemoryManager::free_process_memory(int pid) {
 
     // 释放所有已分配的物理页框
     PageTable* pt = it->second.get();
+    std::unordered_set<size_t> reclaimed_swap_blocks;
     for (size_t i = 0; i < pt->size(); ++i) {
         auto& entry = (*pt)[i];
         if (entry.present) {
             physical_memory_.free_frame(entry.frame_number);
+        }
+        if (entry.on_disk &&
+            reclaimed_swap_blocks.insert(entry.swap_block).second) {
+            free_swap_block(entry.swap_block);
         }
     }
 
@@ -153,11 +165,12 @@ bool MemoryManager::handle_page_fault(int pid,
                 if (victim_entry.dirty) {
                     // 脏页写回磁盘（交换出）
                     if (!victim_entry.on_disk) {
-                        if (next_swap_block_ >= config::DISK_NUM_BLOCKS) {
+                        auto swap_block = allocate_swap_block();
+                        if (!swap_block) {
                             std::cerr << "[Swap] Out of swap blocks" << std::endl;
                             return false;
                         }
-                        victim_entry.swap_block = next_swap_block_++;
+                        victim_entry.swap_block = *swap_block;
                         victim_entry.on_disk = true;
                     }
 
@@ -191,6 +204,25 @@ bool MemoryManager::handle_page_fault(int pid,
               << " for PID=" << pid << ", VPage=" << page_number << std::endl;
 
     return true;
+}
+
+std::optional<size_t> MemoryManager::allocate_swap_block() {
+    if (free_swap_blocks_.empty()) {
+        return std::nullopt;
+    }
+
+    const size_t block_id = free_swap_blocks_.front();
+    free_swap_blocks_.pop_front();
+    return block_id;
+}
+
+void MemoryManager::free_swap_block(size_t block_id) {
+    if (block_id < config::SWAP_START_BLOCK ||
+        block_id >= config::DISK_NUM_BLOCKS) {
+        throw std::runtime_error("Swap block out of range: " +
+                                 std::to_string(block_id));
+    }
+    free_swap_blocks_.push_back(block_id);
 }
 
 void MemoryManager::dump_page_table(int pid) const {

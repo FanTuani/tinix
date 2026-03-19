@@ -769,6 +769,156 @@ def case_pc_file_ops_invalid_fd(exe: Path, repo: Path) -> None:
             raise AssertionError(f"expected process completion\n--- stderr ---\n{r.err}")
 
 
+def case_fs_reject_non_directory_parent(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "format",
+                    "mount",
+                    "touch /a",
+                    "touch /a/b",
+                    "mkdir /a/c",
+                    "fsinfo",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+
+        _require_contains(r.err, "[FS] Parent is not a directory: /a")
+        snapshots = _parse_superblock_snapshots(r.err)
+        if not snapshots:
+            raise AssertionError(f"missing superblock snapshot\n--- stderr ---\n{r.err}")
+        if snapshots[-1] != (888, 126):
+            raise AssertionError(
+                f"unexpected free space after rejected create: {snapshots[-1]!r}\n--- stderr ---\n{r.err}"
+            )
+
+
+def case_fs_reject_rm_directory(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "format",
+                    "mount",
+                    "mkdir /a",
+                    "touch /a/f",
+                    "echo hi > /a/f",
+                    "rm /a",
+                    "cat /a/f",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+        if r.out.strip() != "hi":
+            raise AssertionError(f"unexpected stdout\n--- stdout ---\n{r.out}\n--- stderr ---\n{r.err}")
+        _require_contains(r.err, "[FS] Cannot remove directory with rm: /a")
+
+
+def case_shell_invalid_input(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    "create -f",
+                    "tick nope",
+                    "dev nope",
+                    "kill nope",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+        _require_contains(r.err, "Usage: create -f <file>")
+        _require_contains(r.err, "Usage: tick [n]")
+        _require_contains(r.err, "Usage: dev [device_id]")
+        _require_contains(r.err, "Usage: kill <pid>")
+
+
+def case_pc_invalid_parse(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        pc = cwd / "bad.pc"
+        pc.write_text("R abc\n", encoding="utf-8")
+
+        r = _run(
+            exe,
+            "\n".join(
+                [
+                    f"create -f {pc.name}",
+                    "ps",
+                    "exit",
+                    "",
+                ]
+            ),
+            cwd,
+        )
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+        _require_contains(r.err, f"Invalid MemRead operand at {pc.name}:1")
+        _require_contains(r.err, f"Failed to load program from {pc.name}")
+        if re.search(r"Process \d+ created", r.err):
+            raise AssertionError(f"unexpected process creation\n--- stderr ---\n{r.err}")
+
+
+def case_swap_reclaims_blocks(exe: Path, repo: Path) -> None:
+    with tempfile.TemporaryDirectory() as td:
+        cwd = Path(td)
+
+        pc = cwd / "leak.pc"
+        pc.write_text(
+            "\n".join(
+                [
+                    "W 0x0000",
+                    "W 0x1000",
+                    "W 0x2000",
+                    "W 0x3000",
+                    "W 0x4000",
+                    "W 0x5000",
+                    "W 0x6000",
+                    "W 0x7000",
+                    "W 0x8000",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        commands = ["format", "mount"]
+        for _ in range(140):
+            commands.append(f"create -f {pc.name}")
+            commands.append("tick 20")
+        commands.extend(["exit", ""])
+
+        r = _run(exe, "\n".join(commands), cwd)
+        if r.code != 0:
+            raise AssertionError(r.out + r.err)
+        if "[Swap] Out of swap blocks" in r.err:
+            raise AssertionError(f"swap blocks leaked across processes\n--- stderr ---\n{r.err}")
+
+
 CASES = {
     "shell_help": case_shell_help,
     "fs_persistence": case_fs_persistence,
@@ -784,6 +934,11 @@ CASES = {
     "pc_file_ops_explicit_fd": case_pc_file_ops_explicit_fd,
     "pc_file_ops_auto_fd_cleanup": case_pc_file_ops_auto_fd_cleanup,
     "pc_file_ops_invalid_fd": case_pc_file_ops_invalid_fd,
+    "fs_reject_non_directory_parent": case_fs_reject_non_directory_parent,
+    "fs_reject_rm_directory": case_fs_reject_rm_directory,
+    "shell_invalid_input": case_shell_invalid_input,
+    "pc_invalid_parse": case_pc_invalid_parse,
+    "swap_reclaims_blocks": case_swap_reclaims_blocks,
 }
 
 

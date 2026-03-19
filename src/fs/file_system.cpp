@@ -261,10 +261,24 @@ bool FileSystem::create_file(const std::string& path) {
     // 分离父目录和文件名
     std::string parent_path, file_name;
     dir_mgr_->split_path(dir_mgr_->normalize_path(path, current_dir_), parent_path, file_name);
+    if (file_name.empty()) {
+        std::cerr << "[FS] Invalid file name: " << path << std::endl;
+        return false;
+    }
     
     uint32_t parent_inode = dir_mgr_->lookup_path(parent_path, current_dir_);
     if (parent_inode == INVALID_INODE) {
         std::cerr << "[FS] Parent directory not found: " << parent_path << std::endl;
+        return false;
+    }
+
+    Inode parent;
+    if (!inode_mgr_->read_inode(parent_inode, parent)) {
+        return false;
+    }
+    if (parent.type != FileType::DIRECTORY) {
+        std::cerr << "[FS] Parent is not a directory: " << parent_path
+                  << std::endl;
         return false;
     }
     
@@ -321,6 +335,11 @@ bool FileSystem::remove_file(const std::string& path) {
     
     Inode inode;
     if (!inode_mgr_->read_inode(file_inode, inode)) {
+        return false;
+    }
+    if (inode.type == FileType::DIRECTORY) {
+        std::cerr << "[FS] Cannot remove directory with rm: " << path
+                  << std::endl;
         return false;
     }
     

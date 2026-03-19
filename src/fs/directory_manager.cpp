@@ -133,6 +133,15 @@ bool DirectoryManager::add_directory_entry(uint32_t dir_inode, const std::string
     if (!inode_mgr_->read_inode(dir_inode, inode)) {
         return false;
     }
+    if (inode.type != FileType::DIRECTORY) {
+        std::cerr << "[FS] Parent is not a directory (inode=" << dir_inode
+                  << ")" << std::endl;
+        return false;
+    }
+    if (name.empty()) {
+        std::cerr << "[FS] Invalid empty directory entry name" << std::endl;
+        return false;
+    }
     
     // 查找空闲目录项
     for (uint32_t i = 0; i < inode.blocks_used; i++) {
@@ -188,6 +197,11 @@ bool DirectoryManager::remove_directory_entry(uint32_t dir_inode, const std::str
     if (!inode_mgr_->read_inode(dir_inode, inode)) {
         return false;
     }
+    if (inode.type != FileType::DIRECTORY) {
+        std::cerr << "[FS] Parent is not a directory (inode=" << dir_inode
+                  << ")" << std::endl;
+        return false;
+    }
     
     for (uint32_t i = 0; i < inode.blocks_used; i++) {
         std::vector<uint8_t> block_data(BLOCK_SIZE);
@@ -216,10 +230,24 @@ bool DirectoryManager::remove_directory_entry(uint32_t dir_inode, const std::str
 bool DirectoryManager::create_directory(const std::string& path, const std::string& current_dir) {
     std::string parent_path, dir_name;
     split_path(normalize_path(path, current_dir), parent_path, dir_name);
+    if (dir_name.empty()) {
+        std::cerr << "[FS] Invalid directory name: " << path << std::endl;
+        return false;
+    }
     
     uint32_t parent_inode = lookup_path(parent_path, current_dir);
     if (parent_inode == INVALID_INODE) {
         std::cerr << "[FS] Parent directory not found: " << parent_path << std::endl;
+        return false;
+    }
+
+    Inode parent;
+    if (!inode_mgr_->read_inode(parent_inode, parent)) {
+        return false;
+    }
+    if (parent.type != FileType::DIRECTORY) {
+        std::cerr << "[FS] Parent is not a directory: " << parent_path
+                  << std::endl;
         return false;
     }
     

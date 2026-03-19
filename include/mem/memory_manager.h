@@ -3,8 +3,10 @@
 #include "page_table.h"
 #include "dev/disk.h"
 #include "common/config.h"
+#include <deque>
 #include <map>
 #include <memory>
+#include <optional>
 #include <cstdint>
 
 enum class AccessType {
@@ -39,10 +41,12 @@ private:
     std::map<int, MemoryStats> process_stats_;
     MemoryStats stats_;
     DiskDevice& disk_;
+    std::deque<size_t> free_swap_blocks_;
     
     size_t page_size_ = config::PAGE_SIZE;
     size_t clock_ptr_ = 0;
-    size_t next_swap_block_ = config::SWAP_START_BLOCK;
 
     bool handle_page_fault(int pid, size_t page_number, AccessType type);
+    std::optional<size_t> allocate_swap_block();
+    void free_swap_block(size_t block_id);
 };

@@ -114,6 +114,46 @@ add_test(
           --case pc_file_ops_invalid_fd
 )
 
+add_test(
+  NAME tinix_fs_reject_non_directory_parent
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case fs_reject_non_directory_parent
+)
+
+add_test(
+  NAME tinix_fs_reject_rm_directory
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case fs_reject_rm_directory
+)
+
+add_test(
+  NAME tinix_shell_invalid_input
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case shell_invalid_input
+)
+
+add_test(
+  NAME tinix_pc_invalid_parse
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case pc_invalid_parse
+)
+
+add_test(
+  NAME tinix_swap_reclaims_blocks
+  COMMAND "${Python3_EXECUTABLE}" "${TINIX_TEST_RUNNER}"
+          --exe "$<TARGET_FILE:tinix>"
+          --repo "${CMAKE_SOURCE_DIR}"
+          --case swap_reclaims_blocks
+)
+
 set_tests_properties(
   tinix_shell_help
   tinix_fs_persistence
@@ -129,5 +169,10 @@ set_tests_properties(
   tinix_pc_file_ops_explicit_fd
   tinix_pc_file_ops_auto_fd_cleanup
   tinix_pc_file_ops_invalid_fd
+  tinix_fs_reject_non_directory_parent
+  tinix_fs_reject_rm_directory
+  tinix_shell_invalid_input
+  tinix_pc_invalid_parse
+  tinix_swap_reclaims_blocks
   PROPERTIES TIMEOUT 20
 )

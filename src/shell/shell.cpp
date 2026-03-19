@@ -1,8 +1,37 @@
 #include "shell/shell.h"
 #include "kernel.h"
+#include <exception>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <fstream>
+
+namespace {
+bool parse_int_arg(const std::vector<std::string>& args,
+                   size_t index,
+                   const char* usage,
+                   int& out) {
+    if (index >= args.size()) {
+        std::cerr << "Usage: " << usage << "\n";
+        return false;
+    }
+
+    try {
+        size_t pos = 0;
+        const long value = std::stol(args[index], &pos, 10);
+        if (pos != args[index].size() ||
+            value < std::numeric_limits<int>::min() ||
+            value > std::numeric_limits<int>::max()) {
+            throw std::out_of_range("int");
+        }
+        out = static_cast<int>(value);
+        return true;
+    } catch (const std::exception&) {
+        std::cerr << "Usage: " << usage << "\n";
+        return false;
+    }
+}
+}  // namespace
 
 Shell::Shell(Kernel& kernel) : kernel_(kernel), running_(true) {}
 
@@ -67,68 +96,87 @@ void Shell::execute_command(const std::vector<std::string>& args) {
     } else if (cmd == "ps") {
         kernel_.get_process_manager().dump_processes();
     } else if (cmd == "create" or cmd == "cr") {
-        if (args.size() > 2 && args[1] == "-f") {
+        if (args.size() > 1 && args[1] == "-f") {
+            if (args.size() != 3) {
+                std::cerr << "Usage: create -f <file>\n";
+                return;
+            }
             int pid = kernel_.get_process_manager().create_process_from_file(args[2]);
             if (pid != -1) {
                 std::cerr << "Created process PID: " << pid << " from " << args[2] << "\n";
             }
         } else {
             int total_time = 10;
-            if (args.size() > 1) {
-                total_time = std::stoi(args[1]);
+            if (args.size() > 2) {
+                std::cerr << "Usage: create [time]\n";
+                return;
+            }
+            if (args.size() == 2 &&
+                !parse_int_arg(args, 1, "create [time]", total_time)) {
+                return;
             }
             int pid = kernel_.get_process_manager().create_process(total_time);
             std::cerr << "Created process PID: " << pid << "\n";
         }
     } else if (cmd == "kill") {
-        if (args.size() > 1) {
-            kernel_.get_process_manager().terminate_process(std::stoi(args[1]));
-        } else {
-            std::cerr << "Usage: kill <pid>\n";
+        int pid = 0;
+        if (!parse_int_arg(args, 1, "kill <pid>", pid)) {
+            return;
         }
+        kernel_.get_process_manager().terminate_process(pid);
     } else if (cmd == "tick" or cmd == "tk") {
         int n = 1;
-        if (args.size() > 1) {
-            n = std::stoi(args[1]);
+        if (args.size() > 2) {
+            std::cerr << "Usage: tick [n]\n";
+            return;
+        }
+        if (args.size() == 2 && !parse_int_arg(args, 1, "tick [n]", n)) {
+            return;
         }
         for (int i = 0; i < n; i++) {
             kernel_.get_process_manager().tick();
         }
     } else if (cmd == "run") {
-        if (args.size() > 1) {
-            kernel_.get_process_manager().run_process(std::stoi(args[1]));
-        } else {
-            std::cerr << "Usage: run <pid>\n";
+        int pid = 0;
+        if (!parse_int_arg(args, 1, "run <pid>", pid)) {
+            return;
         }
+        kernel_.get_process_manager().run_process(pid);
     } else if (cmd == "block") {
-        if (args.size() > 1) {
-            int pid = std::stoi(args[1]);
-            int duration = 5;
-            if (args.size() > 2) {
-                duration = std::stoi(args[2]);
-            }
-            kernel_.get_process_manager().block_process(pid, duration);
-        } else {
+        if (args.size() > 3) {
             std::cerr << "Usage: block <pid> [duration]\n";
+            return;
         }
+        int pid = 0;
+        if (!parse_int_arg(args, 1, "block <pid> [duration]", pid)) {
+            return;
+        }
+        int duration = 5;
+        if (args.size() == 3 &&
+            !parse_int_arg(args, 2, "block <pid> [duration]", duration)) {
+            return;
+        }
+        kernel_.get_process_manager().block_process(pid, duration);
     } else if (cmd == "wakeup") {
-        if (args.size() > 1) {
-            kernel_.get_process_manager().wakeup_process(std::stoi(args[1]));
-        } else {
-            std::cerr << "Usage: wakeup <pid>\n";
+        int pid = 0;
+        if (!parse_int_arg(args, 1, "wakeup <pid>", pid)) {
+            return;
         }
+        kernel_.get_process_manager().wakeup_process(pid);
     } else if (cmd == "pagetable" or cmd == "pt") {
-        if (args.size() > 1) {
-            int pid = std::stoi(args[1]);
-            kernel_.get_memory_manager().dump_page_table(pid);
-        } else {
-            std::cerr << "Usage: pagetable <pid>\n";
+        int pid = 0;
+        if (!parse_int_arg(args, 1, "pagetable <pid>", pid)) {
+            return;
         }
+        kernel_.get_memory_manager().dump_page_table(pid);
     } else if (cmd == "mem") {
         kernel_.get_memory_manager().dump_physical_memory();
     } else if (cmd == "memstats" or cmd == "ms") {
         if (args.size() > 1) {
-            int pid = std::stoi(args[1]);
+            int pid = 0;
+            if (!parse_int_arg(args, 1, "memstats [pid]", pid)) {
+                return;
+            }
             auto stats = kernel_.get_memory_manager().get_process_stats(pid);
             std::cerr << "=== Memory Stats for PID " << pid << " ===\n";
             std::cerr << "Memory Accesses: " << stats.memory_accesses << "\n";
@@ -185,18 +233,21 @@ void Shell::execute_command(const std::vector<std::string>& args) {
             return;
         }
 
-        try {
-            const auto target = static_cast<uint32_t>(std::stoul(args[1]));
-            for (const auto& dev : devices) {
-                if (dev.dev_id == target) {
-                    print_device(dev);
-                    return;
-                }
-            }
-            std::cerr << "Device not found: " << target << "\n";
-        } catch (const std::exception&) {
-            std::cerr << "Usage: dev [device_id]\n";
+        int target = 0;
+        if (!parse_int_arg(args, 1, "dev [device_id]", target)) {
+            return;
         }
+        if (target < 0) {
+            std::cerr << "Usage: dev [device_id]\n";
+            return;
+        }
+        for (const auto& dev : devices) {
+            if (dev.dev_id == static_cast<uint32_t>(target)) {
+                print_device(dev);
+                return;
+            }
+        }
+        std::cerr << "Device not found: " << target << "\n";
     
     // === File System Commands ===
     } else if (cmd == "format") {
