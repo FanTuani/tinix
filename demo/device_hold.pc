@@ -1,0 +1,6 @@
+# Device demo: request, hold, release
+DR 0
+C
+C
+DD 0
+C

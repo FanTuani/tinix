@@ -1,0 +1,8 @@
+# Memory management demo
+create -f demo/memory_intensive.pc
+tick 8
+mem
+tick 1
+mem
+tick 7
+memstats

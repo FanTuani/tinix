@@ -1,0 +1,15 @@
+# Process management demo
+create 6
+create 6
+ps
+tick 3
+ps
+tick 3
+ps
+kill 1
+kill 2
+create -f demo/process_sleep.pc
+tick 2
+ps
+tick 3
+ps

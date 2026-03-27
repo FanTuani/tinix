@@ -1,0 +1,5 @@
+# Process demo: quickly enter blocked state, then resume
+C
+S 3
+C
+C

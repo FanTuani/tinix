@@ -1,0 +1,8 @@
+# Device management demo
+create -f demo/device_hold.pc
+create -f demo/device_hold.pc
+dev
+tick 1
+dev
+tick 10
+dev

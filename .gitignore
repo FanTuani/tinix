@@ -2,3 +2,5 @@ build/
 .DS_Store
 .vscode/
 disk.img
+.codex_work/
+.codex_slide_work/

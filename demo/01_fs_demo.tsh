@@ -1,0 +1,8 @@
+# File system demo
+format
+mkdir /demo
+touch /demo/msg
+echo hello > /demo/msg
+cat /demo/msg
+cd /demo
+pwd
